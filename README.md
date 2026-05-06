@@ -5,6 +5,16 @@
 > revenue-optimal dynamic prices — generating a **+12.7% revenue uplift**
 > (₹1.45M annualised) with **83.7% demand retention** vs static pricing.
 
+🚀 **[Live Demo → dynamic-pricing-engine.streamlit.app](https://dynamic-pricing-engine-lbuj8shpgcveh9tkr5zkjs.streamlit.app/)**
+
+---
+
+### Dashboard Preview
+
+| Normal Market | Surge Conditions |
+|---|---|
+| ![normal](assets/normal.png) | ![surge](surge.png) |
+
 ---
 
 ## Business Problem
@@ -94,6 +104,36 @@ Impact Simulation (static vs dynamic · 1,714 test hours)
 - Static vs dynamic revenue comparison across all hours
 - Breakdown by DSR zone, event type, and week
 - Uplift scales with market intensity — confirms system design
+
+---
+## Business Assumptions
+
+| Assumption | Value | Rationale |
+|---|---|---|
+| Price elasticity (ε) | -0.7 | Conservative estimate — log-log regression was confounded by DSR; -0.7 reflects inelastic urban demand |
+| DSR clip ceiling | 5.0 | Prevents exploitative pricing during extreme events |
+| Surge floor / ceiling | 0.8× / 2.5× | Realistic platform constraints — protects customer trust |
+| EMA smoothing (α) | 0.25 | Prevents price whipsawing between consecutive hours |
+| Supply model | Simulated | Intraday sine curve with event-driven contraction |
+| Elasticity scope | Constant | First-order approximation — real elasticity varies by time, DSR, and customer segment |
+
+---
+
+## Limitations & Known Constraints
+
+**Data**
+- Demand and supply are synthetically generated — real data would introduce noise, cancellations, and spatial variation not captured here
+- Elasticity estimated under confounded conditions (DSR drives both price and demand simultaneously); assumed ε = -0.7 used in production logic
+
+**Model**
+- No causal inference — the model identifies correlation, not causation between price and demand
+- Constant elasticity assumption does not capture segment-level or time-of-day variation in price sensitivity
+- No competitor pricing signals — real platforms adjust based on competitor surge multipliers
+
+**System**
+- No real-time streaming — the engine runs on batch hourly data, not live feeds
+- No A/B testing framework — revenue uplift is simulated, not experimentally validated
+- Feedback loop simulation runs for 6 rounds only — long-run equilibrium dynamics not modelled
 
 ---
 
