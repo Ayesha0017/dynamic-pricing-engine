@@ -13,7 +13,8 @@
 
 | Normal Market | Surge Conditions |
 |---|---|
-| ![normal](assets/normal.png) | ![surge](surge.png) |
+| ![normal](assets/normal.png) |  
+| ![surge](surge.png) |
 
 ---
 
@@ -157,7 +158,7 @@ pip install -r requirements.txt
 # 2. Generate data
 python src/generate_data.py
 
-# 3. Run notebooks in order (01 → 05)
+# 3. Run notebooks in order (01 - 04)
 jupyter notebook notebooks/
 
 # 4. Launch Streamlit dashboard
