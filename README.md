@@ -11,10 +11,11 @@
 
 ### Dashboard Preview
 
-| Normal Market | Surge Conditions |
-|---|---|
-| ![normal](assets/normal.png) |  
-| ![surge](surge.png) |
+#### Normal Market
+![normal](assets/normal.png)
+
+#### Surge Conditions
+![surge](assets/surge.png)
 
 ---
 
