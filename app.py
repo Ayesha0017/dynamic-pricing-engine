@@ -1,18 +1,27 @@
 """
-app.py — Dynamic Pricing Dashboard
-Run with: streamlit run app.py
+app.py — Dynamic Pricing Dashboard (Polished Version)
+Run with: python -m streamlit run app.py
 """
 
 import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 import sys
-sys.path.append('src')
-from pricing_engine import (adjusted_demand, pricing_multiplier,
-                             get_dynamic_price, BASE_PRICE)
 
-# ── Page config ──
+sys.path.append('src')
+
+from pricing_engine import (
+    adjusted_demand,
+    pricing_multiplier,
+    get_dynamic_price,
+    BASE_PRICE
+)
+
+# ─────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────
 st.set_page_config(
     page_title="Dynamic Pricing Engine",
     page_icon="💰",
@@ -20,146 +29,241 @@ st.set_page_config(
 )
 
 st.title("💰 Dynamic Pricing Engine")
-st.caption("Ride-hailing / E-commerce · Real-time pricing simulator")
+st.caption("End-to-end pricing system with simulation + real-world validation")
 
-# ── Sidebar controls ──
-st.sidebar.header("Market Conditions")
-demand   = st.sidebar.slider("Demand (rides/orders)",
-                              min_value=20, max_value=500,
-                              value=150, step=10)
-supply   = st.sidebar.slider("Supply (drivers/stock)",
-                              min_value=10, max_value=200,
-                              value=80, step=5)
-is_event = st.sidebar.toggle("Event active (rain/concert/holiday)", value=False)
-prev_price = st.sidebar.slider("Previous hour price (₹)",
-                                min_value=8.0, max_value=25.0,
-                                value=10.0, step=0.5)
-
-st.sidebar.divider()
-st.sidebar.header("Engine Parameters")
-alpha       = st.sidebar.slider("Multiplier sensitivity (α)",
-                                 0.1, 1.0, 0.5, 0.05)
-smooth_alph = st.sidebar.slider("Smoothing factor",
-                                 0.1, 1.0, 0.25, 0.05)
-
-# ── Compute ──
-DSR      = demand / (supply + 1)
-# Simulate uncertainty based on event status
-band_w   = demand * (0.3 if is_event else 0.12)
-pred_low  = demand * (0.75 if is_event else 0.90)
-pred_high = demand * (1.25 if is_event else 1.10)
-
-result = get_dynamic_price(
-    DSR=DSR,
-    pred_low=pred_low,
-    pred_high=pred_high,
-    pred_mid=demand,
-    prev_price=prev_price,
-    smooth_alpha=smooth_alph
+# ─────────────────────────────────────────────
+# MODE SELECTOR (DEFAULT = REAL DATA)
+# ─────────────────────────────────────────────
+mode = st.radio(
+    "Select Mode",
+    ["Real Data Mode", "Simulation Mode"],
+    horizontal=True
 )
 
-dynamic_price  = result['smoothed_price']
-multiplier     = result['multiplier']
-dsr_zone       = result['dsr_zone']
-adj_demand     = adjusted_demand(demand, BASE_PRICE, dynamic_price)
-static_rev     = demand * BASE_PRICE
-dynamic_rev    = adj_demand * dynamic_price
-rev_diff       = dynamic_rev - static_rev
-rev_uplift_pct = (dynamic_rev - static_rev) / static_rev * 100
+# =========================================================
+# 🔵 REAL DATA MODE (DEFAULT)
+# =========================================================
+if mode == "Real Data Mode":
 
-# ── Main metrics row ──
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("DSR", f"{DSR:.2f}", dsr_zone)
-col2.metric("Multiplier", f"{multiplier:.3f}×")
-col3.metric("Dynamic Price", f"₹{dynamic_price:.2f}",
-            f"{(dynamic_price/BASE_PRICE - 1)*100:+.1f}% vs base")
-col4.metric("Revenue (dynamic)", f"₹{dynamic_rev:,.0f}",
-            f"{rev_uplift_pct:+.1f}% vs static")
-col5.metric("Demand retained",
-            f"{adj_demand:.0f}",
-            f"{(adj_demand/demand - 1)*100:+.1f}%")
+    st.subheader("📊 Real Data Pricing Dashboard")
 
-st.divider()
+    file_path = "output/phase4_full_simulation.csv"
 
-# ── Two-column layout ──
-left, right = st.columns(2)
+    if not os.path.exists(file_path):
+        st.error("⚠️ Run: python src/simulation.py first")
+        st.stop()
 
-with left:
-    st.subheader("Price vs demand trade-off")
-    prices  = np.linspace(5, 30, 200)
-    demands = [adjusted_demand(demand, BASE_PRICE, p) for p in prices]
-    revs    = [d * p for d, p in zip(demands, prices)]
+    df = pd.read_csv(file_path, parse_dates=['timestamp'])
 
-    fig, ax = plt.subplots(figsize=(6, 3.5))
-    ax2 = ax.twinx()
-    ax.plot(prices, demands, color='steelblue', lw=2, label='Demand')
-    ax2.plot(prices, revs,   color='tomato',    lw=2,
-             label='Revenue', ls='--')
-    ax.axvline(dynamic_price, color='green', ls=':', lw=1.5,
-               label=f'Dynamic ₹{dynamic_price:.1f}')
-    ax.axvline(BASE_PRICE,    color='gray',  ls=':', lw=1,
-               label=f'Base ₹{BASE_PRICE}')
-    ax.set_xlabel('Price (₹)'); ax.set_ylabel('Demand', color='steelblue')
-    ax2.set_ylabel('Revenue (₹)', color='tomato')
-    ax.set_title('Demand & revenue curve')
-    lines1, labels1 = ax.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, fontsize=7)
-    plt.tight_layout()
+
+    index = st.slider("Select Time Step", 0, len(df) - 1, 0)
+    row = df.iloc[index]
+
+    # KPIs
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    col1.metric("Time", str(row['timestamp']))
+    col2.metric("DSR", f"{row['DSR']:.2f}")
+    col3.metric("Price (₹)", f"{row['smoothed_price']:.2f}")
+    col4.metric("Multiplier", f"{row['multiplier']:.2f}×")
+    col5.metric("Revenue (₹)", f"{row['dynamic_revenue']:,.0f}")
+
+    st.divider()
+
+    # TRENDS
+    st.subheader("📈 Pricing & Demand-Supply Trends Over Time")
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(df['timestamp'], df['smoothed_price'], label="Price (₹)")
+    ax.plot(df['timestamp'], df['DSR'], label="DSR")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Value")
+    ax.legend()
     st.pyplot(fig)
     plt.close()
 
-with right:
-    st.subheader("Static vs dynamic comparison")
-    categories = ['Revenue', 'Demand']
-    static_vals  = [static_rev,  demand]
-    dynamic_vals = [dynamic_rev, adj_demand]
+    # REVENUE COMPARISON
+    st.subheader("💰 Static vs Dynamic Revenue Over Time")
 
-    fig, axes = plt.subplots(1, 2, figsize=(6, 3.5))
-    for i, (ax, cat, sv, dv) in enumerate(
-            zip(axes, categories, static_vals, dynamic_vals)):
-        bars = ax.bar(['Static', 'Dynamic'], [sv, dv],
-                      color=['steelblue', 'tomato'], alpha=0.85)
-        ax.set_title(cat, fontsize=10)
-        for bar, val in zip(bars, [sv, dv]):
-            ax.text(bar.get_x() + bar.get_width()/2,
-                    bar.get_height() * 1.01,
-                    f'{val:,.0f}', ha='center', fontsize=8)
-    plt.tight_layout()
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(df['timestamp'], df['static_revenue'], label="Static Revenue (₹)")
+    ax.plot(df['timestamp'], df['dynamic_revenue'], label="Dynamic Revenue (₹)")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Revenue (₹)")
+    ax.legend()
     st.pyplot(fig)
     plt.close()
 
-# ── Decision explanation ──
-st.divider()
-st.subheader("Pricing decision breakdown")
-exp_col1, exp_col2, exp_col3 = st.columns(3)
+    # INSIGHTS
+    st.subheader("🧠 Business Insights")
 
-with exp_col1:
-    st.info(f"""
+    static_total = df['static_revenue'].sum()
+    dynamic_total = df['dynamic_revenue'].sum()
+    uplift = ((dynamic_total - static_total) / static_total) * 100
+
+    if uplift > 5:
+        st.success(f"🚀 Strong uplift: +{uplift:.1f}% revenue increase")
+    elif uplift > 0:
+        st.info(f"📈 Moderate uplift: +{uplift:.1f}% improvement")
+    else:
+        st.warning("⚠️ Pricing strategy hurting revenue")
+
+    st.write(f"**Total Static Revenue:** ₹{static_total:,.0f}")
+    st.write(f"**Total Dynamic Revenue:** ₹{dynamic_total:,.0f}")
+
+    # ZONE ANALYSIS
+    st.subheader("📊 Revenue by Market Condition (DSR Zones)")
+
+    zone_summary = df.groupby('dsr_zone').agg({
+        'dynamic_revenue': 'sum',
+        'static_revenue': 'sum'
+    }).reset_index()
+
+    zone_summary['uplift_%'] = (
+        (zone_summary['dynamic_revenue'] - zone_summary['static_revenue'])
+        / zone_summary['static_revenue'] * 100
+    )
+
+    st.dataframe(zone_summary)
+
+
+# =========================================================
+# 🟢 SIMULATION MODE
+# =========================================================
+elif mode == "Simulation Mode":
+
+    st.sidebar.header("📊 Market Conditions")
+
+    demand = st.sidebar.slider("Demand (orders)", 20, 500, 150, 10)
+    supply = st.sidebar.slider("Supply (drivers/stock)", 10, 200, 80, 5)
+    is_event = st.sidebar.toggle("Event active (rain/concert/holiday)", False)
+
+    prev_price = st.sidebar.slider("Previous price (₹)", 5.0, 30.0, 10.0, 0.5)
+    base_price = st.sidebar.slider("Base price (₹)", 5.0, 20.0, 10.0, 0.5)
+
+    st.sidebar.divider()
+
+    st.sidebar.header("⚙️ Engine Parameters")
+
+    alpha = st.sidebar.slider("Multiplier sensitivity (α)", 0.1, 1.0, 0.5, 0.05)
+    smooth_alpha = st.sidebar.slider("Smoothing factor", 0.1, 1.0, 0.25, 0.05)
+
+    # CORE LOGIC
+    DSR = demand / (supply + 1)
+
+    volatility = 0.1 + (0.2 if is_event else 0)
+    pred_low = demand * (1 - volatility)
+    pred_high = demand * (1 + volatility)
+
+    multiplier = pricing_multiplier(DSR, pred_low, pred_high, demand, alpha=alpha)
+
+    result = get_dynamic_price(
+        DSR=DSR,
+        pred_low=pred_low,
+        pred_high=pred_high,
+        pred_mid=demand,
+        prev_price=prev_price,
+        base_price=base_price,
+        smooth_alpha=smooth_alpha
+    )
+
+    dynamic_price = result['smoothed_price']
+    dsr_zone = result['dsr_zone']
+
+    adj_demand = adjusted_demand(demand, base_price, dynamic_price)
+
+    static_rev = demand * base_price
+    dynamic_rev = adj_demand * dynamic_price
+
+    rev_diff = dynamic_rev - static_rev
+    rev_uplift_pct = (rev_diff / static_rev * 100) if static_rev != 0 else 0
+
+    # KPIs
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    col1.metric("DSR", f"{DSR:.2f}", dsr_zone)
+    col2.metric("Multiplier", f"{multiplier:.3f}×")
+    col3.metric("Dynamic Price (₹)", f"{dynamic_price:.2f}")
+    col4.metric("Revenue (₹)", f"{dynamic_rev:,.0f}", f"{rev_uplift_pct:+.1f}%")
+    col5.metric("Demand retained (orders)", f"{adj_demand:.0f}")
+
+    st.divider()
+
+    # VISUALS
+    left, right = st.columns(2)
+
+    with left:
+        st.subheader("📈 Price Sensitivity Curve (Demand vs Revenue Trade-off)")
+
+        prices = np.linspace(5, 30, 200)
+        demands = [adjusted_demand(demand, base_price, p) for p in prices]
+        revenues = [d * p for d, p in zip(demands, prices)]
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax2 = ax.twinx()
+
+        ax.plot(prices, demands, label="Demand (orders)")
+        ax2.plot(prices, revenues, linestyle="--", label="Revenue (₹)")
+
+        ax.axvline(dynamic_price, linestyle="--", linewidth=2, label="Dynamic Price")
+        ax.axvline(base_price, linestyle=":", label="Base Price")
+
+        ax.set_xlabel("Price (₹)")
+        ax.set_ylabel("Demand (orders)")
+        ax2.set_ylabel("Revenue (₹)")
+
+        ax.legend()
+        st.pyplot(fig)
+        plt.close()
+
+    with right:
+        st.subheader("📊 Static vs Dynamic Comparison")
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.bar(["Static", "Dynamic"], [static_rev, dynamic_rev])
+        ax.set_ylabel("Revenue (₹)")
+        st.pyplot(fig)
+        plt.close()
+
+    # RECOMMENDATION (NEW)
+    st.subheader("🧠 Pricing Recommendation")
+
+    if DSR > 1.2 and rev_uplift_pct > 0:
+        st.success("Increase price — strong demand and revenue improving")
+    elif DSR < 0.8:
+        st.warning("Reduce price — weak demand")
+    else:
+        st.info("Maintain price — balanced market")
+
+    # BREAKDOWN
+    st.subheader("📊 Pricing Decision Breakdown")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.info(f"""
 **Market signal**
-- Demand: {demand} units
-- Supply: {supply} units
-- DSR: {DSR:.2f}
-- Zone: {dsr_zone}
-- Event: {'Yes ⚡' if is_event else 'No'}
+- Demand: {demand} orders  
+- Supply: {supply} units  
+- DSR: {DSR:.2f}  
+- Zone: {dsr_zone}  
+- Event: {'Yes' if is_event else 'No'}
 """)
 
-with exp_col2:
-    st.info(f"""
+    with col2:
+        st.info(f"""
 **Engine output**
-- Base multiplier: {1 + alpha*(min(DSR,5.0)-1):.3f}×
-- After uncertainty discount: {multiplier:.3f}×
-- Raw price: ₹{BASE_PRICE * multiplier:.2f}
+- Multiplier: {multiplier:.3f}×  
+- Raw price: ₹{base_price * multiplier:.2f}  
 - Smoothed price: ₹{dynamic_price:.2f}
 """)
 
-with exp_col3:
-    color = "success" if rev_diff > 0 else "warning"
-    getattr(st, color)(f"""
+    with col3:
+        st.success(f"""
 **Revenue impact**
-- Static: ₹{static_rev:,.0f}
-- Dynamic: ₹{dynamic_rev:,.0f}
-- Difference: ₹{rev_diff:+,.0f}
-- Uplift: {rev_uplift_pct:+.1f}%
-- Demand retained: {adj_demand/demand*100:.1f}%
+- Static: ₹{static_rev:,.0f}  
+- Dynamic: ₹{dynamic_rev:,.0f}  
+- Change: ₹{rev_diff:+,.0f}  
+- Uplift: {rev_uplift_pct:+.1f}%  
+- Demand retained: {(adj_demand/demand)*100:.1f}%
 """)
